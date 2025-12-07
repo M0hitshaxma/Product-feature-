@@ -1,0 +1,591 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Assistant Session Sharing Showcase</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            overflow: hidden;
+        }
+        .sidebar-item:hover .actions-btn, .sidebar-item.force-hover .actions-btn {
+            opacity: 1;
+        }
+        .sidebar-item.active {
+            background-color: #e0e7ff; /* A light blue for active state */
+        }
+        .actions-btn {
+            opacity: 0;
+            transition: opacity 0.2s ease-in-out;
+        }
+        .actions-menu {
+            transition: opacity 0.2s ease-in-out, transform 0.2s ease-in-out;
+        }
+        .notification-badge {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background-color: #2563eb;
+        }
+        .toast-notification {
+            transform: translateY(120%);
+            transition: transform 0.5s cubic-bezier(0.25, 1, 0.5, 1);
+        }
+        .toast-notification.show {
+            transform: translateY(0);
+        }
+        input[type="radio"]:checked + label {
+            border-color: #2563eb;
+            background-color: #eff6ff;
+        }
+        .doc-list {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.5s ease-in-out;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 antialiased">
+    <div class="h-screen w-full flex flex-col">
+        <!-- New Tabs Section -->
+        <div class="bg-white border-b border-gray-200">
+            <nav class="-mb-px flex space-x-8 px-4" aria-label="Tabs">
+                <a href="#" class="border-blue-500 text-blue-600 whitespace-nowrap py-3 px-1 border-b-2 font-medium text-sm" aria-current="page">
+                    Feature development tutorial
+                </a>
+                <a href="https://docs.google.com/document/d/1zaIG9X2PS1w4OGvfvsU6mb8A-mp5N7if7-BV36L8wlE/edit?usp=sharing" target="_blank" rel="noopener noreferrer" class="border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 whitespace-nowrap py-3 px-1 border-b-2 font-medium text-sm">
+                    Feature development Report
+                </a>
+            </nav>
+        </div>
+
+
+        <div class="flex flex-1 overflow-hidden">
+            <aside id="sidebar" class="w-80 bg-white border-r border-gray-200 flex flex-col flex-shrink-0">
+                </aside>
+
+            <main id="main-content" class="flex-1 flex flex-col items-center justify-center p-8 bg-gray-50">
+                </main>
+        </div>
+         <!-- New Footer Line -->
+        <div class="text-center py-2 bg-gray-100 border-t border-gray-200">
+            <p class="text-xs text-gray-500 italic">Idea & build by Mohit (product development).</p>
+        </div>
+    </div>
+
+
+    <div id="tour-box" class="fixed bottom-5 right-5 w-96 bg-white shadow-2xl rounded-lg p-5 border border-gray-200 z-50">
+        <div class="flex items-start gap-3">
+            <div class="w-10 h-10 bg-blue-100 text-blue-600 flex items-center justify-center rounded-full flex-shrink-0">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+            </div>
+            <div>
+                <h3 id="tour-title" class="font-bold text-gray-800 mb-1">Feature Showcase</h3>
+                <p id="tour-description" class="text-sm text-gray-600 leading-relaxed">This is an automated tour of the session sharing feature. Click 'Next' to proceed.</p>
+            </div>
+        </div>
+        <div class="mt-4 flex justify-end gap-2">
+             <button id="tour-back" class="bg-gray-200 text-gray-700 font-semibold py-2 px-5 rounded-lg text-sm hover:bg-gray-300 transition-colors hidden">Back</button>
+             <button id="tour-next" class="bg-blue-600 text-white font-semibold py-2 px-5 rounded-lg text-sm hover:bg-blue-700 transition-colors">Next</button>
+        </div>
+    </div>
+    
+    <div id="share-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-40 hidden">
+        <div id="share-modal-content" class="bg-white rounded-xl shadow-xl w-full max-w-lg transform scale-95 opacity-0 transition-all duration-300">
+             </div>
+    </div>
+
+    <div id="toast" class="toast-notification fixed bottom-5 left-1/2 -translate-x-1/2 bg-gray-900 text-white py-3 px-6 rounded-full text-sm font-medium shadow-lg z-50">
+        <span id="toast-message"></span>
+    </div>
+
+    <script>
+        const tourBox = document.getElementById('tour-box');
+        const tourTitle = document.getElementById('tour-title');
+        const tourDescription = document.getElementById('tour-description');
+        const tourNextBtn = document.getElementById('tour-next');
+        const tourBackBtn = document.getElementById('tour-back');
+
+        const sidebar = document.getElementById('sidebar');
+        const mainContent = document.getElementById('main-content');
+        const shareModal = document.getElementById('share-modal');
+        const shareModalContent = document.getElementById('share-modal-content');
+        const toast = document.getElementById('toast');
+        const toastMessage = document.getElementById('toast-message');
+
+        let currentStep = 0;
+        let currentUser = 'Mohit';
+        let currentSidebarView = 'my-chats'; 
+
+        // Data
+        const mohitChats = [
+            { id: 'chat1', title: 'New Chat Session', date: '12 Oct 2025', files: 1, docs: [] },
+            { id: 'chat2', title: 'New Chat Session', date: '02 Oct 2025', files: 1, docs: [] },
+            { id: 'chat3', title: 'Extract Consent Parties', date: '25 Sep 2025', files: 16, isTarget: true, docs: [
+                { name: 'QAT Test Results - S...', type: 'doc' },
+                { name: 'Master Service Agreement.pdf', type: 'pdf' }
+            ]},
+            { id: 'chat4', title: 'Change of Control Consent', date: '25 Sep 2025', files: 10, docs: [] },
+            { id: 'chat5', title: 'Change of Control Consent', date: '25 Sep 2025', files: 10, docs: [] },
+            { id: 'chat6', title: 'Legal Consent Extraction', date: '25 Sep 2025', files: 10, docs: [] },
+        ];
+        
+        const anyaChats = [
+            { id: 'anya1', title: 'Q3 Compliance Report', date: '11 Oct 2025', files: 4 },
+            { id: 'anya2', title: 'Discovery Request Analysis', date: '09 Oct 2025', files: 12 },
+        ];
+        
+        let sharedWithAnya = [];
+        
+        let toastTimer;
+        function hideToast() {
+            clearTimeout(toastTimer);
+            toast.classList.remove('show');
+        }
+
+        function showToast(message) {
+            hideToast(); // Clear any existing toast
+            toastMessage.textContent = message;
+            toast.classList.add('show');
+            toastTimer = setTimeout(() => {
+                toast.classList.remove('show');
+            }, 3000);
+        }
+
+        // --- UI Rendering ---
+
+        function renderSidebarUI(view, showNotification = false) {
+            currentSidebarView = view;
+            const isMyChats = view === 'my-chats';
+            const chats = isMyChats ? (currentUser === 'Mohit' ? mohitChats : anyaChats) : sharedWithAnya;
+            const notificationBadgeClasses = showNotification ? '' : 'hidden';
+
+            let chatListHtml = '';
+            if (isMyChats) {
+                 chatListHtml = chats.map(chat => {
+                     const docListHtml = (chat.docs || []).map(doc => `
+                        <div class="flex items-center gap-2 p-2 mx-4 mb-1 rounded-lg bg-gray-100">
+                            <svg class="w-5 h-5 text-blue-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"></path></svg>
+                            <span class="text-sm text-gray-700 truncate">${doc.name}</span>
+                        </div>
+                     `).join('');
+
+                     return `
+                    <div id="item-wrapper-${chat.id}">
+                        <div id="${chat.id}" class="sidebar-item group p-3 rounded-lg hover:bg-gray-100 cursor-pointer transition-colors relative ${chat.isTarget ? 'border-2 border-transparent' : ''}" onclick="toggleDocuments('${chat.id}')">
+                            <h4 class="font-medium text-gray-800 text-sm mb-1">${chat.title}</h4>
+                            <p class="text-xs text-gray-400">${chat.date} • ${chat.files} Files</p>
+                            <button class="actions-btn absolute right-3 top-3 bg-white p-1 rounded-md group-hover:opacity-100" onclick="event.stopPropagation(); toggleActionsMenu('${chat.id}')">
+                               <svg class="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z"></path></svg>
+                            </button>
+                            <div id="actions-${chat.id}" class="actions-menu absolute right-3 top-12 bg-white shadow-xl rounded-lg border border-gray-200 w-40 z-20 opacity-0 transform scale-95 pointer-events-none">
+                                <a href="#" class="flex items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.5L15.232 5.232z"></path></svg>Rename</a>
+                                <a href="#" class="flex items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100" onclick="event.preventDefault(); event.stopPropagation(); tourNextBtn.click()">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.684 13.342a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.368a3 3 0 105.367 2.684 3 3 0 00-5.367-2.684z"></path></svg>Share</a>
+                                <a href="#" class="flex items-center gap-3 px-4 py-2 text-sm text-red-600 hover:bg-red-50">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>Delete</a>
+                            </div>
+                        </div>
+                        <div id="docs-${chat.id}" class="doc-list">${docListHtml}</div>
+                    </div>
+                `}).join('');
+            } else { // Shared Chats view
+                chatListHtml = `
+                    <div class="p-4"><p class="text-sm font-semibold text-gray-500">Shared with you</p></div>
+                    ${sharedWithAnya.map(chat => `
+                    <div id="shared-${chat.id}" class="sidebar-item group p-3 mx-2 rounded-lg hover:bg-gray-100 cursor-pointer transition-colors relative border-2 border-transparent">
+                        <h4 class="font-medium text-gray-800 text-sm mb-1">${chat.title}</h4>
+                        <p class="text-xs text-gray-400">Shared by <span class="font-medium text-gray-500">${chat.sharedBy}</span></p>
+                        <button class="actions-btn absolute right-3 top-3 bg-white p-1 rounded-md group-hover:opacity-100" onclick="event.stopPropagation(); toggleSharedActionsMenu('${chat.id}')">
+                            <svg class="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z"></path></svg>
+                        </button>
+                        <div id="actions-shared-${chat.id}" class="actions-menu absolute right-3 top-12 bg-white shadow-xl rounded-lg border border-gray-200 z-20 opacity-0 transform scale-95 pointer-events-none">
+                            <a href="#" class="flex w-full items-center justify-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-lg" onclick="event.preventDefault(); tourNextBtn.click()">
+                               <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path></svg> Exit
+                            </a>
+                        </div>
+                        </div>
+                `).join('')}`;
+            }
+
+            const myChatsClasses = isMyChats ? 'bg-blue-50 text-blue-700' : 'text-gray-500 hover:bg-gray-100';
+            const sharedChatsClasses = !isMyChats ? 'bg-blue-50 text-blue-700' : 'text-gray-500 hover:bg-gray-100';
+
+            sidebar.innerHTML = `
+                <div class="p-4 border-b border-gray-200 flex items-center justify-between">
+                    <h1 class="font-bold text-lg text-gray-800">Assistant</h1>
+                    <button class="text-gray-500 hover:text-gray-800">
+                         <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 19l-7-7 7-7m8 14l-7-7 7-7"></path></svg>
+                    </button>
+                </div>
+                <div class="p-4 border-b border-gray-200 space-y-4">
+                    <button id="my-chats-btn" onclick="renderSidebarUI('my-chats')" class="w-full flex items-center gap-3 font-medium py-2 px-3 rounded-lg transition-colors ${myChatsClasses}">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path></svg> New Chat Session
+                    </button>
+                    <button class="w-full text-left flex items-center gap-3 font-medium py-2 px-3 rounded-lg transition-colors relative text-gray-500 hover:bg-gray-100">
+                         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg> Search Chats
+                    </button>
+                    <button id="shared-chats-tab-btn" onclick="renderSidebarUI('shared-chats')" class="w-full text-left flex items-center gap-3 font-medium py-2 px-3 rounded-lg transition-colors relative ${sharedChatsClasses}">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path></svg> Shared Chats
+                         <div id="notification-badge" class="absolute left-4 top-1/2 -translate-y-1/2 h-2 w-2 rounded-full bg-blue-600 ${notificationBadgeClasses}"></div>
+                    </button>
+                </div>
+                <div class="flex-grow overflow-y-auto px-2 py-2 space-y-1">${chatListHtml}</div>
+                <div class="mt-auto p-2 border-t border-gray-200">
+                     <div class="flex items-center justify-between p-2">
+                        <div class="flex items-center gap-3">
+                           <div class="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center font-bold text-gray-600">${currentUser.charAt(0)}</div>
+                           <span class="font-semibold text-sm">${currentUser}</span>
+                        </div>
+                     </div>
+                     <div class="space-y-1 mt-2">
+                        <a href="#" class="flex items-center gap-3 p-2 rounded-lg text-sm text-gray-600 hover:bg-gray-100">
+                           <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg> Help
+                        </a>
+                         <a href="#" class="flex items-center gap-3 p-2 rounded-lg text-sm text-gray-600 hover:bg-gray-100">
+                           <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 8v8m-4-5v5m-4-2v2m-2 4h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg> Activity
+                        </a>
+                     </div>
+                </div>
+            `;
+        }
+        
+        function toggleDocuments(chatId) {
+            const docList = document.getElementById(`docs-${chatId}`);
+            if (docList) {
+                if (docList.style.maxHeight && docList.style.maxHeight !== '0px') {
+                    docList.style.maxHeight = '0px';
+                } else {
+                    docList.style.maxHeight = docList.scrollHeight + "px";
+                }
+            }
+        }
+
+        function toggleActionsMenu(chatId) {
+            const menu = document.getElementById(`actions-${chatId}`);
+            if (menu.classList.contains('opacity-0')) {
+                document.querySelectorAll('.actions-menu').forEach(m => {
+                    m.classList.add('opacity-0', 'scale-95', 'pointer-events-none');
+                    m.classList.remove('opacity-100', 'scale-100');
+                });
+                menu.classList.remove('opacity-0', 'scale-95', 'pointer-events-none');
+                menu.classList.add('opacity-100', 'scale-100');
+            } else {
+                menu.classList.add('opacity-0', 'scale-95', 'pointer-events-none');
+                menu.classList.remove('opacity-100', 'scale-100');
+            }
+        }
+        function toggleSharedActionsMenu(chatId) {
+            const menu = document.getElementById(`actions-shared-${chatId}`);
+             if (menu && menu.classList.contains('opacity-0')) {
+                document.querySelectorAll('.actions-menu').forEach(m => {
+                    m.classList.add('opacity-0', 'scale-95', 'pointer-events-none');
+                    m.classList.remove('opacity-100', 'scale-100');
+                });
+                menu.classList.remove('opacity-0', 'scale-95', 'pointer-events-none');
+                menu.classList.add('opacity-100', 'scale-100');
+            } else if (menu) {
+                menu.classList.add('opacity-0', 'scale-95', 'pointer-events-none');
+                menu.classList.remove('opacity-100', 'scale-100');
+            }
+        }
+
+        document.addEventListener('click', (e) => {
+            if (!e.target.closest('.actions-btn')) {
+                 document.querySelectorAll('.actions-menu').forEach(m => {
+                    m.classList.add('opacity-0', 'scale-95', 'pointer-events-none');
+                    m.classList.remove('opacity-100', 'scale-100');
+                });
+            }
+        });
+
+        function renderMainContent(view) {
+             if (view === 'initial') {
+                 mainContent.innerHTML = `
+                    <div class="w-full max-w-4xl mx-auto text-center">
+                        <h2 class="text-3xl font-semibold text-gray-800 mb-8">Hi ${currentUser}! How can I help you?</h2>
+                        <div class="relative bg-white border border-gray-200 rounded-2xl shadow-sm p-3">
+                             <textarea class="w-full h-24 p-2 text-gray-600 placeholder-gray-400 focus:outline-none resize-none" placeholder="From document querying to research, just type what you need help with..."></textarea>
+                             <div class="flex items-center justify-between pt-2">
+                                <div class="flex items-center gap-2">
+                                    <button class="flex items-center gap-2 text-sm font-semibold text-gray-600 bg-gray-100 hover:bg-gray-200 px-3 py-1.5 rounded-lg">
+                                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>
+                                        Upload
+                                    </button>
+                                     <button class="flex items-center gap-2 text-sm font-semibold text-gray-600 bg-gray-100 hover:bg-gray-200 px-3 py-1.5 rounded-lg">
+                                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.246 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"></path></svg>
+                                        Prompt Library
+                                    </button>
+                                </div>
+                                <div class="flex items-center gap-3">
+                                    <button class="text-gray-500 hover:text-gray-800">
+                                         <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"></path></svg>
+                                    </button>
+                                    <button class="bg-blue-600 text-white rounded-lg p-2 hover:bg-blue-700">
+                                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 10l7-7m0 0l7 7m-7-7v18"></path></svg>
+                                    </button>
+                                </div>
+                             </div>
+                        </div>
+                        <p class="text-xs text-gray-500 mt-4">You can switch back to old Lucio from Settings. <a href="#" class="font-semibold text-gray-600">Go to Settings</a></p>
+                    </div>
+                `;
+            }
+        }
+        
+        function openShareModal(step) {
+            shareModal.classList.remove('hidden');
+            let content = '';
+            if (step === 1) {
+                content = `
+                    <div class="p-8">
+                        <h2 class="text-xl font-bold text-gray-900">Share Session - "Extract Consent Parties"</h2>
+                        <p class="text-sm text-gray-500 mt-2">Share session across organization</p>
+                        <div class="mt-8 space-y-6">
+                            <div class="flex items-center">
+                                <input type="radio" id="share-everyone" name="share-type" class="h-4 w-4 text-blue-600 border-gray-300 focus:ring-blue-500" value="everyone">
+                                <label for="share-everyone" class="ml-3 block text-sm font-medium text-gray-700">Share with everyone in the organization</label>
+                            </div>
+                            <div class="flex items-center">
+                                <input type="radio" id="share-specific" name="share-type" class="h-4 w-4 text-blue-600 border-gray-300 focus:ring-blue-500" value="specific" checked>
+                                <label for="share-specific" class="ml-3 block text-sm font-medium text-gray-700">Share with selected people only</label>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="bg-white px-6 py-4 flex justify-end gap-3 rounded-b-xl">
+                        <button class="bg-white border border-gray-300 text-gray-700 font-semibold py-2 px-4 rounded-lg text-sm hover:bg-gray-100" onclick="closeShareModal()">Skip</button>
+                        <button class="bg-blue-600 text-white font-semibold py-2 px-4 rounded-lg text-sm hover:bg-blue-700" onclick="tourNextBtn.click()">Share</button>
+                    </div>
+                `;
+            } else if (step === 2) {
+                content = `
+                    <div class="p-6 border-b border-gray-200">
+                        <h2 class="text-xl font-bold text-gray-900">Share Session - "Extract Consent Parties"</h2>
+                        <p class="text-sm text-gray-500 mt-1">Share session across organization</p>
+                    </div>
+                    <div class="p-6 space-y-4">
+                        <div>
+                            <label class="font-semibold text-gray-800 text-sm">Select Users</label>
+                            <div class="mt-2 flex items-center gap-2 border border-gray-300 rounded-lg p-2 focus-within:ring-2 focus-within:ring-blue-500">
+                                <div id="recipient-pills" class="flex gap-1"></div>
+                                <input id="recipient-input" type="text" placeholder="Users" class="flex-grow focus:outline-none text-sm">
+                                <select id="permission-level" class="border-l border-gray-300 pl-2 text-sm text-gray-600 font-medium focus:outline-none">
+                                    <option>Viewer</option>
+                                    <option selected>Editor</option>
+                                </select>
+                             </div>
+                        </div>
+                        <div>
+                            <h3 class="font-semibold text-gray-800 text-sm mb-2">Who has access</h3>
+                            <div class="space-y-3">
+                                <div class="flex justify-between items-center">
+                                    <p class="text-sm text-gray-700">mohit@lucioai.com</p>
+                                    <p class="text-sm font-medium text-gray-500">Owner</p>
+                                </div>
+                                <div id="anya-access-row" class="hidden flex justify-between items-center">
+                                     <p class="text-sm text-gray-700">anya@lucioai.com</p>
+                                     <p class="text-sm font-medium text-blue-600">Editor</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                     <div class="bg-gray-50 px-6 py-4 flex justify-end gap-3 rounded-b-xl">
+                        <button class="bg-white border border-gray-300 text-gray-700 font-semibold py-2 px-4 rounded-lg text-sm hover:bg-gray-100" onclick="closeShareModal()">Cancel</button>
+                        <button id="final-share-btn" class="bg-blue-600 text-white font-semibold py-2 px-4 rounded-lg text-sm hover:bg-blue-700" disabled onclick="tourNextBtn.click()">Done</button>
+                    </div>
+                `;
+            }
+            shareModalContent.innerHTML = content;
+             setTimeout(() => {
+                shareModalContent.classList.remove('scale-95', 'opacity-0');
+                shareModalContent.classList.add('scale-100', 'opacity-100');
+            }, 10);
+        }
+
+        function closeShareModal() {
+            shareModalContent.classList.add('scale-95', 'opacity-0');
+            setTimeout(() => shareModal.classList.add('hidden'), 300);
+        }
+
+        const steps = [
+            { 
+                title: "Step 1: Initiate Sharing",
+                description: "<b>Step:</b> To begin sharing, hover over the session to reveal the '...' icon. Click it, and then select 'Share' from the menu that appears.",
+                action: () => {
+                    currentUser = 'Mohit';
+                    sharedWithAnya = []; // Ensure Anya's list is empty at the start
+                    closeShareModal();
+                    renderSidebarUI('my-chats');
+                    renderMainContent('initial');
+                    document.getElementById('chat3').classList.add('force-hover', 'bg-gray-100');
+                    toggleActionsMenu('chat3');
+                }
+            },
+            {
+                title: "Step 2: Choose Share Type",
+                description: "<b>Step:</b> A sharing modal will appear. To share with specific people, ensure 'Share with selected people only' is selected and then click 'Share'.",
+                action: () => {
+                    currentUser = 'Mohit';
+                    renderSidebarUI('my-chats');
+                    renderMainContent('initial');
+                    openShareModal(1);
+                }
+            },
+            {
+                title: "Step 3: Select Recipient & Permissions",
+                description: "<b>Step:</b> In this screen, you can add colleagues. Type a name, like 'Anya', into the user field. You can also set their permission level, such as 'Editor'.",
+                action: () => {
+                    currentUser = 'Mohit';
+                    renderSidebarUI('my-chats');
+                    renderMainContent('initial');
+                    openShareModal(2);
+                }
+            },
+            {
+                title: "Step 4: Add Recipient",
+                description: "<b>Step:</b> After typing the name, the recipient will be added. Now, you can click 'Done' to finalize the share.",
+                action: () => {
+                    currentUser = 'Mohit';
+                    renderSidebarUI('my-chats');
+                    renderMainContent('initial');
+                    openShareModal(2);
+                    document.getElementById('recipient-pills').innerHTML = `<span class="bg-blue-100 text-blue-800 text-sm font-medium px-2.5 py-1 rounded-full">Anya Sharma</span>`;
+                    document.getElementById('anya-access-row').classList.remove('hidden');
+                    document.getElementById('final-share-btn').disabled = false;
+                }
+            },
+            {
+                title: "Step 5: Share Confirmed",
+                description: "<b>Step:</b> The session has been shared successfully. A confirmation message will appear. We will now switch to the recipient's view.",
+                action: () => {
+                    closeShareModal();
+                    currentUser = 'Mohit';
+                    renderSidebarUI('my-chats');
+                    renderMainContent('initial');
+                    showToast("Session shared successfully!");
+                }
+            },
+            {
+                title: "Step 6: Recipient's View",
+                description: "<b>Step:</b> This is Anya's dashboard. A notification indicates a new item. We've jumped to the 'Shared Chats' tab, showing the new session from Mohit.",
+                action: () => {
+                    currentUser = 'Anya';
+                    sharedWithAnya = [{ id: 'chat3', title: 'Extract Consent Parties', sharedBy: 'Mohit', role: 'Editor' }];
+                    closeShareModal();
+                    renderSidebarUI('shared-chats', true); 
+                    renderMainContent('initial');
+                    const sharedItem = document.getElementById('shared-chat3');
+                    if (sharedItem) {
+                       sharedItem.style.borderColor = '#2563eb';
+                    }
+                }
+            },
+            {
+                title: "Step 7: Managing Shared Sessions",
+                description: "<b>Step:</b> The shared session is now listed. The notification is gone as you've seen it. To manage access, hover over the item to reveal the '...' icon.",
+                action: () => {
+                    currentUser = 'Anya';
+                    sharedWithAnya = [{ id: 'chat3', title: 'Extract Consent Parties', sharedBy: 'Mohit', role: 'Editor' }];
+                    closeShareModal();
+                    renderSidebarUI('shared-chats');
+                    renderMainContent('initial');
+                    const sharedItem = document.getElementById('shared-chat3');
+                    if (sharedItem) {
+                       sharedItem.style.borderColor = 'transparent';
+                    }
+                }
+            },
+            {
+                title: "Step 8: Exiting a Shared Session",
+                description: "<b>Step:</b> Hovering and clicking the '...' icon reveals the options, matching the screenshot. Here, you can select 'Exit' to remove the session.",
+                action: () => {
+                    currentUser = 'Anya';
+                    sharedWithAnya = [{ id: 'chat3', title: 'Extract Consent Parties', sharedBy: 'Mohit', role: 'Editor' }];
+                    closeShareModal();
+                    renderSidebarUI('shared-chats');
+                    renderMainContent('initial');
+                    const sharedItem = document.getElementById('shared-chat3');
+                    if (sharedItem) {
+                        sharedItem.classList.add('force-hover', 'bg-gray-100');
+                        toggleSharedActionsMenu('chat3');
+                    }
+                }
+            },
+            {
+                title: "Step 9: Exit Confirmed",
+                description: "<b>Step:</b> The session is immediately removed from your 'Shared Chats' list, and a confirmation message appears.",
+                action: () => {
+                     currentUser = 'Anya';
+                     sharedWithAnya = [];
+                     closeShareModal();
+                     renderSidebarUI('shared-chats');
+                     renderMainContent('initial');
+                     showToast("You have left the session.");
+                }
+            },
+            {
+                title: "Showcase Complete!",
+                description: "This concludes the detailed tour of the session sharing feature. Click 'Restart' to see it again.",
+                action: () => {
+                    closeShareModal();
+                }
+            }
+        ];
+
+        function runStep(stepIndex) {
+            hideToast(); // Force-hide any lingering toast notifications
+
+            if (stepIndex >= steps.length) {
+                currentStep = 0;
+                runStep(currentStep);
+                return;
+            }
+            
+            const step = steps[stepIndex];
+            
+            tourTitle.innerHTML = step.title;
+            tourDescription.innerHTML = step.description;
+            
+            step.action();
+
+            if (stepIndex > 0) {
+                tourBackBtn.classList.remove('hidden');
+            } else {
+                tourBackBtn.classList.add('hidden');
+            }
+
+            if (stepIndex === steps.length - 1) {
+                tourNextBtn.textContent = "Restart";
+            } else {
+                tourNextBtn.textContent = "Next";
+            }
+        }
+        
+        tourBackBtn.addEventListener('click', () => {
+            if (currentStep > 0) {
+                currentStep--;
+                runStep(currentStep);
+            }
+        });
+
+        tourNextBtn.addEventListener('click', () => {
+            if(tourNextBtn.textContent === 'Restart'){
+                currentStep = 0;
+            } else {
+                currentStep++;
+            }
+            runStep(currentStep);
+        });
+
+        // Initial setup
+        runStep(0);
+
+    </script>
+</body>
+</html>
